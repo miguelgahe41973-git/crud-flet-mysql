@@ -4,20 +4,23 @@ Capa de acceso a datos (MySQL) para el CRUD de productos.
 Requiere: pip install mysql-connector-python
 """
 
+import os
 import mysql.connector
 from mysql.connector import Error
 
 # ============================================
 # CONFIGURACIÓN DE CONEXIÓN
-# Ajusta estos datos según tu instalación de
-# XAMPP / WAMP / MySQL Server (phpMyAdmin).
+# Lee las credenciales desde variables de entorno
+# (necesario para desplegar en Render/Railway/etc.)
+# Si no existen, usa valores locales por defecto
+# para seguir funcionando en tu PC con XAMPP/WAMP.
 # ============================================
 DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "Tolen1941",          # normalmente vacío en XAMPP
-    "database": "crud_flet",
-    "port": 3306,
+    "host": os.environ.get("DB_HOST", "localhost"),
+    "user": os.environ.get("DB_USER", "root"),
+    "password": os.environ.get("DB_PASSWORD", ""),
+    "database": os.environ.get("DB_NAME", "crud_flet"),
+    "port": int(os.environ.get("DB_PORT", 3306)),
 }
 
 

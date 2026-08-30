@@ -4,31 +4,31 @@ CRUD de productos con Flet + MySQL (phpMyAdmin).
 Requiere: pip install flet mysql-connector-python
 Ejecutar: python main.py
 """
- 
+
 import flet as ft
 import os
 import database as db
- 
- 
+
+
 def main(page: ft.Page):
     page.title = "CRUD Productos - Flet + MySQL"
     page.window.width = 900
     page.window.height = 700
     page.padding = 20
     page.scroll = ft.ScrollMode.AUTO
- 
+
     # ----- Estado -----
     id_seleccionado = ft.Ref[ft.Text]()
     id_seleccionado_valor = {"id": None}  # producto en edición
- 
+
     # ----- Campos del formulario -----
     txt_nombre = ft.TextField(label="Nombre", width=300)
     txt_descripcion = ft.TextField(label="Descripción", width=300)
     txt_precio = ft.TextField(label="Precio", width=140, keyboard_type=ft.KeyboardType.NUMBER)
     txt_cantidad = ft.TextField(label="Cantidad", width=140, keyboard_type=ft.KeyboardType.NUMBER)
- 
+
     mensaje = ft.Text(value="", color=ft.Colors.RED)
- 
+
     tabla = ft.DataTable(
         columns=[
             ft.DataColumn(ft.Text("ID")),
@@ -40,16 +40,17 @@ def main(page: ft.Page):
         ],
         rows=[],
     )
- 
-    def limpiar_formulario():
+
+    def limpiar_formulario(limpiar_mensaje=True):
         id_seleccionado_valor["id"] = None
         txt_nombre.value = ""
         txt_descripcion.value = ""
         txt_precio.value = ""
         txt_cantidad.value = ""
-        mensaje.value = ""
+        if limpiar_mensaje:
+            mensaje.value = ""
         page.update()
- 
+
     def cargar_productos():
         tabla.rows.clear()
         productos = db.obtener_productos()
@@ -85,7 +86,7 @@ def main(page: ft.Page):
                 )
             )
         page.update()
- 
+
     def validar_formulario():
         if not txt_nombre.value:
             mensaje.value = "El nombre es obligatorio."
@@ -100,16 +101,16 @@ def main(page: ft.Page):
             return False
         mensaje.value = ""
         return True
- 
+
     def guardar_producto(e):
         if not validar_formulario():
             return
- 
+
         nombre = txt_nombre.value
         descripcion = txt_descripcion.value
         precio = float(txt_precio.value)
         cantidad = int(txt_cantidad.value)
- 
+
         if id_seleccionado_valor["id"] is None:
             # Crear
             exito = db.agregar_producto(nombre, descripcion, precio, cantidad)
@@ -122,10 +123,10 @@ def main(page: ft.Page):
             )
             mensaje.value = "Producto actualizado." if exito else "Error al actualizar."
             mensaje.color = ft.Colors.GREEN if exito else ft.Colors.RED
- 
-        limpiar_formulario()
+
+        limpiar_formulario(limpiar_mensaje=False)
         cargar_productos()
- 
+
     def cargar_para_editar(e):
         p = e.control.data
         id_seleccionado_valor["id"] = p["id"]
@@ -134,18 +135,18 @@ def main(page: ft.Page):
         txt_precio.value = str(p["precio"])
         txt_cantidad.value = str(p["cantidad"])
         page.update()
- 
+
     def confirmar_eliminar(e):
         id_producto = e.control.data
- 
+
         def eliminar(ev):
             db.eliminar_producto(id_producto)
             page.pop_dialog()
             cargar_productos()
- 
+
         def cancelar(ev):
             page.pop_dialog()
- 
+
         dialogo = ft.AlertDialog(
             modal=True,
             title=ft.Text("Confirmar eliminación"),
@@ -156,7 +157,7 @@ def main(page: ft.Page):
             ],
         )
         page.show_dialog(dialogo)
- 
+
     btn_guardar = ft.Button("Guardar", icon=ft.Icons.SAVE, on_click=guardar_producto)
     btn_limpiar = ft.OutlinedButton("Limpiar / Cancelar", on_click=lambda e: limpiar_formulario())
     btn_actualizar = ft.OutlinedButton(
@@ -164,7 +165,7 @@ def main(page: ft.Page):
         icon=ft.Icons.REFRESH,
         on_click=lambda e: cargar_productos(),
     )
- 
+
     page.add(
         ft.Text("Gestión de Productos", size=26, weight=ft.FontWeight.BOLD),
         ft.Row(
@@ -176,10 +177,10 @@ def main(page: ft.Page):
         ft.Divider(),
         ft.Row([tabla], scroll=ft.ScrollMode.AUTO),
     )
- 
+
     cargar_productos()
- 
- 
+
+
 if __name__ == "__main__":
     ft.run(
         main,
