@@ -150,13 +150,85 @@ def main(page: ft.Page):
         dialogo = ft.AlertDialog(
             modal=True,
             title=ft.Text("Confirmar eliminación"),
-            content=ft.Text("¿Seguro que deseas eliminar este producto?"),
+            content=ft.Text(
+                "Este producto se moverá a la papelera (no se borra permanentemente, "
+                "podrás restaurarlo después). ¿Continuar?"
+            ),
             actions=[
                 ft.TextButton("Cancelar", on_click=cancelar),
                 ft.TextButton("Eliminar", on_click=eliminar),
             ],
         )
         page.show_dialog(dialogo)
+
+    def abrir_papelera(e):
+        eliminados = db.obtener_productos_eliminados()
+
+        def restaurar(ev):
+            db.restaurar_producto(ev.control.data)
+            page.pop_dialog()
+            cargar_productos()
+            abrir_papelera(None)  # reabre la papelera ya actualizada
+
+        def eliminar_definitivo(ev):
+            def confirmar(ev2):
+                db.eliminar_producto_definitivo(ev.control.data)
+                page.pop_dialog()
+                abrir_papelera(None)
+
+            def cancelar_def(ev2):
+                page.pop_dialog()
+
+            page.show_dialog(
+                ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text("Eliminar definitivamente"),
+                    content=ft.Text(
+                        "Esta acción SÍ borra el producto para siempre y no se puede deshacer. "
+                        "¿Seguro que quieres continuar?"
+                    ),
+                    actions=[
+                        ft.TextButton("Cancelar", on_click=cancelar_def),
+                        ft.TextButton("Sí, borrar para siempre", on_click=confirmar),
+                    ],
+                )
+            )
+
+        if not eliminados:
+            filas = [ft.Text("No hay productos en la papelera.")]
+        else:
+            filas = []
+            for p in eliminados:
+                filas.append(
+                    ft.Row(
+                        [
+                            ft.Text(f'{p["nombre"]} (${p["precio"]:.2f})', width=250),
+                            ft.IconButton(
+                                icon=ft.Icons.RESTORE,
+                                tooltip="Restaurar",
+                                icon_color=ft.Colors.GREEN,
+                                data=p["id"],
+                                on_click=restaurar,
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.DELETE_FOREVER,
+                                tooltip="Eliminar definitivamente",
+                                icon_color=ft.Colors.RED,
+                                data=p["id"],
+                                on_click=eliminar_definitivo,
+                            ),
+                        ]
+                    )
+                )
+
+        page.show_dialog(
+            ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Papelera de productos"),
+                content=ft.Column(filas, tight=True, scroll=ft.ScrollMode.AUTO, height=300),
+                actions=[ft.TextButton("Cerrar", on_click=lambda ev: page.pop_dialog())],
+            )
+        )
 
     btn_guardar = ft.Button("Guardar", icon=ft.Icons.SAVE, on_click=guardar_producto)
     btn_limpiar = ft.OutlinedButton("Limpiar / Cancelar", on_click=lambda e: limpiar_formulario())
@@ -165,6 +237,11 @@ def main(page: ft.Page):
         icon=ft.Icons.REFRESH,
         on_click=lambda e: cargar_productos(),
     )
+    btn_papelera = ft.OutlinedButton(
+        "Papelera",
+        icon=ft.Icons.DELETE_OUTLINE,
+        on_click=abrir_papelera,
+    )
 
     page.add(
         ft.Text("Gestión de Productos", size=26, weight=ft.FontWeight.BOLD),
@@ -172,7 +249,7 @@ def main(page: ft.Page):
             [txt_nombre, txt_descripcion, txt_precio, txt_cantidad],
             wrap=True,
         ),
-        ft.Row([btn_guardar, btn_limpiar, btn_actualizar]),
+        ft.Row([btn_guardar, btn_limpiar, btn_actualizar, btn_papelera]),
         mensaje,
         ft.Divider(),
         ft.Row([tabla], scroll=ft.ScrollMode.AUTO),
