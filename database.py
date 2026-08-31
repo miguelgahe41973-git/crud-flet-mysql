@@ -3,27 +3,28 @@ database.py
 Capa de acceso a datos (MySQL) para el CRUD de productos.
 Requiere: pip install mysql-connector-python
 """
-
+ 
 import os
 import mysql.connector
 from mysql.connector import Error
-
+ 
 # ============================================
 # CONFIGURACIÓN DE CONEXIÓN
-# Lee las credenciales desde variables de entorno
-# (necesario para desplegar en Render/Railway/etc.)
-# Si no existen, usa valores locales por defecto
-# para seguir funcionando en tu PC con XAMPP/WAMP.
+# Acepta tanto los nombres propios (DB_HOST, DB_USER, etc.)
+# como los nombres que Railway genera automáticamente para
+# su plugin de MySQL (MYSQLHOST, MYSQLUSER, etc.), para no
+# depender de renombrar variables en la interfaz de Railway.
+# Si no existe ninguna, usa valores locales (XAMPP/WAMP).
 # ============================================
 DB_CONFIG = {
-    "host": os.environ.get("DB_HOST", "localhost"),
-    "user": os.environ.get("DB_USER", "root"),
-    "password": os.environ.get("DB_PASSWORD", ""),
-    "database": os.environ.get("DB_NAME", "crud_flet"),
-    "port": int(os.environ.get("DB_PORT", 3306)),
+    "host": os.environ.get("DB_HOST") or os.environ.get("MYSQLHOST", "localhost"),
+    "user": os.environ.get("DB_USER") or os.environ.get("MYSQLUSER", "root"),
+    "password": os.environ.get("DB_PASSWORD") or os.environ.get("MYSQLPASSWORD", ""),
+    "database": os.environ.get("DB_NAME") or os.environ.get("MYSQLDATABASE", "crud_flet"),
+    "port": int(os.environ.get("DB_PORT") or os.environ.get("MYSQLPORT", 3306)),
 }
-
-
+ 
+ 
 def get_connection():
     """Crea y devuelve una nueva conexión a la base de datos."""
     try:
@@ -32,8 +33,8 @@ def get_connection():
     except Error as e:
         print(f"Error al conectar a MySQL: {e}")
         return None
-
-
+ 
+ 
 def obtener_productos():
     """Devuelve una lista de todos los productos (como diccionarios)."""
     conn = get_connection()
@@ -50,8 +51,8 @@ def obtener_productos():
     finally:
         cursor.close()
         conn.close()
-
-
+ 
+ 
 def agregar_producto(nombre, descripcion, precio, cantidad):
     """Inserta un nuevo producto. Devuelve True/False según el resultado."""
     conn = get_connection()
@@ -72,8 +73,8 @@ def agregar_producto(nombre, descripcion, precio, cantidad):
     finally:
         cursor.close()
         conn.close()
-
-
+ 
+ 
 def actualizar_producto(id_producto, nombre, descripcion, precio, cantidad):
     """Actualiza un producto existente por su id."""
     conn = get_connection()
@@ -95,8 +96,8 @@ def actualizar_producto(id_producto, nombre, descripcion, precio, cantidad):
     finally:
         cursor.close()
         conn.close()
-
-
+ 
+ 
 def eliminar_producto(id_producto):
     """Elimina un producto por su id."""
     conn = get_connection()
