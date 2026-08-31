@@ -17,11 +17,59 @@ def main(page: ft.Page):
     page.padding = 20
     page.scroll = ft.ScrollMode.AUTO
 
-    # ----- Estado -----
-    id_seleccionado = ft.Ref[ft.Text]()
-    id_seleccionado_valor = {"id": None}  # producto en edición
+    # ----- Estado de sesión -----
+    sesion = {"usuario": None}
 
-    # ----- Campos del formulario -----
+    # ============================================
+    # PANTALLA DE LOGIN
+    # ============================================
+    txt_usuario = ft.TextField(label="Usuario", width=300, autofocus=True)
+    txt_contrasena = ft.TextField(
+        label="Contraseña", width=300, password=True, can_reveal_password=True
+    )
+    mensaje_login = ft.Text(value="", color=ft.Colors.RED)
+
+    def iniciar_sesion(e):
+        usuario = db.verificar_login(txt_usuario.value, txt_contrasena.value)
+        if usuario:
+            sesion["usuario"] = usuario
+            mostrar_crud()
+        else:
+            mensaje_login.value = "Usuario o contraseña incorrectos."
+            page.update()
+
+    txt_contrasena.on_submit = iniciar_sesion
+
+    def mostrar_login():
+        txt_usuario.value = ""
+        txt_contrasena.value = ""
+        mensaje_login.value = ""
+        page.controls.clear()
+        page.add(
+            ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text("Iniciar sesión", size=26, weight=ft.FontWeight.BOLD),
+                        txt_usuario,
+                        txt_contrasena,
+                        ft.Button(
+                            "Ingresar", icon=ft.Icons.LOGIN, on_click=iniciar_sesion
+                        ),
+                        mensaje_login,
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=15,
+                ),
+                alignment=ft.alignment.center,
+                expand=True,
+            )
+        )
+        page.update()
+
+    # ============================================
+    # SECCIÓN CRUD (solo visible tras iniciar sesión)
+    # ============================================
+    id_seleccionado_valor = {"id": None}  # producto en edición
     txt_nombre = ft.TextField(label="Nombre", width=300)
     txt_descripcion = ft.TextField(label="Descripción", width=300)
     txt_precio = ft.TextField(label="Precio", width=140, keyboard_type=ft.KeyboardType.NUMBER)
@@ -243,19 +291,214 @@ def main(page: ft.Page):
         on_click=abrir_papelera,
     )
 
-    page.add(
-        ft.Text("Gestión de Productos", size=26, weight=ft.FontWeight.BOLD),
-        ft.Row(
-            [txt_nombre, txt_descripcion, txt_precio, txt_cantidad],
-            wrap=True,
-        ),
-        ft.Row([btn_guardar, btn_limpiar, btn_actualizar, btn_papelera]),
-        mensaje,
-        ft.Divider(),
-        ft.Row([tabla], scroll=ft.ScrollMode.AUTO),
+    def cerrar_sesion(e):
+        sesion["usuario"] = None
+        mostrar_login()
+
+    def mostrar_crud():
+        page.controls.clear()
+        usuario_actual = sesion["usuario"]
+        nombre_usuario = usuario_actual["nombre"] if usuario_actual else ""
+        es_admin = usuario_actual and usuario_actual.get("perfil") == "Administrador"
+
+        botones_header = [
+            ft.Text(f"Hola, {nombre_usuario}", italic=True),
+        ]
+        if es_admin:
+            botones_header.append(
+                ft.OutlinedButton(
+                    "Administrar Usuarios",
+                    icon=ft.Icons.MANAGE_ACCOUNTS,
+                    on_click=lambda e: mostrar_usuarios(),
+                )
+            )
+        botones_header.append(
+            ft.IconButton(
+                icon=ft.Icons.LOGOUT,
+                tooltip="Cerrar sesión",
+                on_click=cerrar_sesion,
+            )
+        )
+
+        page.add(
+            ft.Row(
+                [
+                    ft.Text("Gestión de Productos", size=26, weight=ft.FontWeight.BOLD),
+                    ft.Row(botones_header),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            ft.Row(
+                [txt_nombre, txt_descripcion, txt_precio, txt_cantidad],
+                wrap=True,
+            ),
+            ft.Row([btn_guardar, btn_limpiar, btn_actualizar, btn_papelera]),
+            mensaje,
+            ft.Divider(),
+            ft.Row([tabla], scroll=ft.ScrollMode.AUTO),
+        )
+        cargar_productos()
+
+    # ============================================
+    # PANTALLA: ADMINISTRAR USUARIOS (solo Administrador)
+    # ============================================
+    PERFILES = ["Administrador", "Usuario", "Invitado", "Restringido"]
+
+    tabla_usuarios = ft.DataTable(
+        columns=[
+            ft.DataColumn(ft.Text("ID")),
+            ft.DataColumn(ft.Text("Usuario")),
+            ft.DataColumn(ft.Text("Nombre")),
+            ft.DataColumn(ft.Text("Perfil")),
+            ft.DataColumn(ft.Text("Estado")),
+            ft.DataColumn(ft.Text("Acciones")),
+        ],
+        rows=[],
     )
 
-    cargar_productos()
+    def cargar_usuarios():
+        tabla_usuarios.rows.clear()
+        for u in db.obtener_usuarios():
+            tabla_usuarios.rows.append(
+                ft.DataRow(
+                    cells=[
+                        ft.DataCell(ft.Text(str(u["id"]))),
+                        ft.DataCell(ft.Text(u["username"])),
+                        ft.DataCell(ft.Text(u["nombre"])),
+                        ft.DataCell(ft.Text(u["perfil"])),
+                        ft.DataCell(
+                            ft.Text(
+                                "Activo" if u["activo"] else "Inactivo",
+                                color=ft.Colors.GREEN if u["activo"] else ft.Colors.RED,
+                            )
+                        ),
+                        ft.DataCell(
+                            ft.IconButton(
+                                icon=ft.Icons.EDIT,
+                                tooltip="Editar",
+                                data=u,
+                                on_click=lambda e: abrir_formulario_usuario(e.control.data),
+                            )
+                        ),
+                    ]
+                )
+            )
+        page.update()
+
+    def abrir_formulario_usuario(usuario_editar=None):
+        """Diálogo para crear (usuario_editar=None) o editar un usuario existente."""
+        es_edicion = usuario_editar is not None
+
+        f_username = ft.TextField(
+            label="Usuario (login)",
+            value=usuario_editar["username"] if es_edicion else "",
+            disabled=es_edicion,  # el username no se cambia una vez creado
+            width=280,
+        )
+        f_nombre = ft.TextField(
+            label="Nombre completo",
+            value=usuario_editar["nombre"] if es_edicion else "",
+            width=280,
+        )
+        f_password = ft.TextField(
+            label="Contraseña" + (" (dejar vacío para no cambiarla)" if es_edicion else ""),
+            password=True,
+            can_reveal_password=True,
+            width=280,
+        )
+        f_perfil = ft.Dropdown(
+            label="Perfil",
+            width=280,
+            options=[ft.dropdown.Option(p) for p in PERFILES],
+            value=usuario_editar["perfil"] if es_edicion else "Usuario",
+        )
+        f_activo = ft.Switch(
+            label="Usuario activo",
+            value=bool(usuario_editar["activo"]) if es_edicion else True,
+        )
+        f_mensaje = ft.Text(value="", color=ft.Colors.RED)
+
+        def guardar_usuario(e):
+            username = (f_username.value or "").strip()
+            nombre = (f_nombre.value or "").strip()
+            password = f_password.value or ""
+
+            if not username or not nombre:
+                f_mensaje.value = "Usuario y nombre son obligatorios."
+                page.update()
+                return
+
+            if not es_edicion and not password:
+                f_mensaje.value = "La contraseña es obligatoria para un usuario nuevo."
+                page.update()
+                return
+
+            if not es_edicion and db.existe_username(username):
+                f_mensaje.value = "Ese nombre de usuario ya está en uso."
+                page.update()
+                return
+
+            if es_edicion:
+                exito = db.actualizar_usuario(
+                    usuario_editar["id"], nombre, f_perfil.value, f_activo.value,
+                    password=password if password else None,
+                )
+            else:
+                exito = db.crear_usuario(username, password, nombre, f_perfil.value)
+
+            if exito:
+                page.pop_dialog()
+                cargar_usuarios()
+            else:
+                f_mensaje.value = "Ocurrió un error al guardar. Intenta de nuevo."
+                page.update()
+
+        page.show_dialog(
+            ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Editar usuario" if es_edicion else "Nuevo usuario"),
+                content=ft.Column(
+                    [f_username, f_nombre, f_password, f_perfil, f_activo, f_mensaje],
+                    tight=True,
+                    width=300,
+                ),
+                actions=[
+                    ft.TextButton("Cancelar", on_click=lambda e: page.pop_dialog()),
+                    ft.TextButton("Guardar", on_click=guardar_usuario),
+                ],
+            )
+        )
+
+    def mostrar_usuarios():
+        page.controls.clear()
+        page.add(
+            ft.Row(
+                [
+                    ft.Text("Administrar Usuarios", size=26, weight=ft.FontWeight.BOLD),
+                    ft.OutlinedButton(
+                        "Volver",
+                        icon=ft.Icons.ARROW_BACK,
+                        on_click=lambda e: mostrar_crud(),
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            ft.Row(
+                [
+                    ft.Button(
+                        "Nuevo Usuario",
+                        icon=ft.Icons.PERSON_ADD,
+                        on_click=lambda e: abrir_formulario_usuario(None),
+                    )
+                ]
+            ),
+            ft.Divider(),
+            ft.Row([tabla_usuarios], scroll=ft.ScrollMode.AUTO),
+        )
+        cargar_usuarios()
+
+    # ----- Arranque de la app: siempre inicia en el login -----
+    mostrar_login()
 
 
 if __name__ == "__main__":
